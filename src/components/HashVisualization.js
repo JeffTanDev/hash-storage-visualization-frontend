@@ -16,13 +16,22 @@ import {
   ListItem,
   ListItemText,
   LinearProgress,
-  IconButton
+  IconButton,
+  Chip,
+  Tooltip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import WarningIcon from '@mui/icons-material/Warning';
+import LinkIcon from '@mui/icons-material/Link';
 import * as d3 from 'd3';
 
 const StorageNodeCard = ({ node, isSelected, index, onClick }) => {
   const progress = (node.usedCapacity / node.capacity) * 100;
+  const chainLength = node.chain ? node.chain.length : 0;
 
   return (
     <Fade in={true} timeout={500} style={{ transitionDelay: `${index * 100}ms` }}>
@@ -41,9 +50,33 @@ const StorageNodeCard = ({ node, isSelected, index, onClick }) => {
         }}
       >
         <CardContent>
-          <Typography variant="h6" component="div" gutterBottom>
-            {node.name}
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" component="div">
+              {node.name}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {node.collisions > 0 && (
+                <Tooltip title={`${node.collisions} collision(s)`}>
+                  <Chip 
+                    icon={<WarningIcon />} 
+                    label={`${node.collisions} collision(s)`}
+                    color="warning"
+                    size="small"
+                  />
+                </Tooltip>
+              )}
+              {chainLength > 0 && (
+                <Tooltip title={`${chainLength} items in chain`}>
+                  <Chip 
+                    icon={<LinkIcon />} 
+                    label={`${chainLength} in chain`}
+                    color="info"
+                    size="small"
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Capacity: {node.usedCapacity}/{node.capacity} units
@@ -108,17 +141,61 @@ const StorageNodeDialog = ({ node, open, onClose }) => {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {node.usedCapacity} / {node.capacity} units used
           </Typography>
+          {node.collisions > 0 && (
+            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+              This node has {node.collisions} collision(s)
+            </Typography>
+          )}
         </Box>
 
         <Typography variant="subtitle1" gutterBottom>
-          Stored Items ({node.storedItems.length})
+          Stored Items
         </Typography>
         <List>
-          {node.storedItems.map((item) => (
+          {node.storedItems && node.storedItems.map((item) => (
             <ListItem key={item.id} divider>
               <ListItemText
                 primary={item.content}
-                secondary={`Stored at: ${new Date(item.timestamp).toLocaleString()}`}
+                secondary={
+                  <>
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Hash: {item.id}
+                    </Typography>
+                    <br />
+                    {item.originalLocation !== node.name && (
+                      <Typography component="span" variant="body2" color="warning.main">
+                        Collision: Originally assigned to {item.originalLocation}
+                        {item.stepSize && ` (Step size: ${item.stepSize})`}
+                      </Typography>
+                    )}
+                    <br />
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      Stored at: {new Date(item.timestamp).toLocaleString()}
+                    </Typography>
+                  </>
+                }
+              />
+            </ListItem>
+          ))}
+          {node.chain && node.chain.map((item) => (
+            <ListItem key={item.id} divider>
+              <ListItemText
+                primary={item.content}
+                secondary={
+                  <>
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Hash: {item.id}
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="info.main">
+                      Stored in chain
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      Stored at: {new Date(item.timestamp).toLocaleString()}
+                    </Typography>
+                  </>
+                }
               />
             </ListItem>
           ))}
@@ -131,26 +208,42 @@ const StorageNodeDialog = ({ node, open, onClose }) => {
   );
 };
 
-const HashVisualization = ({ hashResult, storageNodes }) => {
+const HashVisualization = ({ hashResult, storageNodes, onMethodChange }) => {
   const [selectedNode, setSelectedNode] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   React.useEffect(() => {
-    if (!hashResult || !storageNodes) return;
-
     // Clear previous visualization
     d3.select('#hash-visualization').selectAll('*').remove();
+
+    if (!hashResult) {
+      // Create initial visualization
+      const svg = d3.select('#hash-visualization')
+        .append('svg')
+        .attr('width', 600)
+        .attr('height', 100);
+
+      svg.append('text')
+        .attr('x', 300)
+        .attr('y', 50)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .style('font-family', 'monospace')
+        .style('font-size', '14px')
+        .text('Enter data to generate hash...');
+      return;
+    }
 
     // Create SVG for hash visualization
     const svg = d3.select('#hash-visualization')
       .append('svg')
       .attr('width', 600)
-      .attr('height', 100);
+      .attr('height', 120);
 
     // Add hash value display with animation
     const hashText = svg.append('text')
       .attr('x', 300)
-      .attr('y', 50)
+      .attr('y', 40)
       .attr('text-anchor', 'middle')
       .attr('fill', '#666')
       .style('font-family', 'monospace')
@@ -164,7 +257,40 @@ const HashVisualization = ({ hashResult, storageNodes }) => {
       .duration(1000)
       .style('opacity', 1);
 
-  }, [hashResult, storageNodes]);
+    // Add collision information
+    if (hashResult.details.isCollision) {
+      const collisionInfo = svg.append('g')
+        .attr('transform', 'translate(300, 70)');
+
+      collisionInfo.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#f44336')
+        .style('font-size', '14px')
+        .text(`Collision! Originally assigned to ${hashResult.details.originalLocation}`);
+
+      if (hashResult.details.collisionMethod === 'double-hashing') {
+        collisionInfo.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#2196f3')
+          .style('font-size', '12px')
+          .attr('y', 20)
+          .text(`Step Size: ${hashResult.details.stepSize}, Probe Sequence: ${hashResult.details.probeSequence}`);
+      }
+
+      collisionInfo.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .style('font-size', '12px')
+        .attr('y', 40)
+        .text(`Method: ${hashResult.details.collisionMethod}`);
+
+      collisionInfo.selectAll('text')
+        .style('opacity', 0)
+        .transition()
+        .duration(1000)
+        .style('opacity', 1);
+    }
+  }, [hashResult]);
 
   const handleNodeClick = async (node) => {
     try {
@@ -179,9 +305,23 @@ const HashVisualization = ({ hashResult, storageNodes }) => {
 
   return (
     <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
-      <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-        Storage Visualization
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h6">
+          Storage Visualization
+        </Typography>
+        <FormControl sx={{ minWidth: 200 }}>
+          <InputLabel>Collision Resolution Method</InputLabel>
+          <Select
+            defaultValue="chaining"
+            onChange={(e) => onMethodChange(e.target.value)}
+            label="Collision Resolution Method"
+          >
+            <MenuItem value="chaining">Chaining (Linked List)</MenuItem>
+            <MenuItem value="linear-probing">Open Addressing (Linear Probing)</MenuItem>
+            <MenuItem value="double-hashing">Double Hashing</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
       
       {/* Hash Display */}
       <Box id="hash-visualization" sx={{ display: 'flex', justifyContent: 'center', mb: 4 }} />
