@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Container, 
-  Typography, 
-  TextField, 
-  Button, 
-  Box, 
+import {
+  Typography,
+  TextField,
+  Button,
+  Box,
   Paper,
   Snackbar,
   Alert,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Container
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
 import HashVisualization from './components/HashVisualization';
 import './App.css';
 
@@ -28,7 +27,15 @@ function App() {
 
   useEffect(() => {
     fetchStorageNodes();
+  
+    const handleResetEvent = () => setResetDialogOpen(true);
+    window.addEventListener('triggerResetDialog', handleResetEvent);
+  
+    return () => {
+      window.removeEventListener('triggerResetDialog', handleResetEvent);
+    };
   }, []);
+  
 
   const fetchStorageNodes = async () => {
     try {
@@ -36,7 +43,6 @@ function App() {
       const data = await response.json();
       setStorageNodes(data);
     } catch (error) {
-      console.error('Error fetching storage nodes:', error);
       setError('Failed to fetch storage nodes');
       setOpenSnackbar(true);
     }
@@ -53,21 +59,16 @@ function App() {
     try {
       const response = await fetch('http://localhost:3001/api/hash', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input, method: collisionMethod }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate hash');
-      }
+      if (!response.ok) throw new Error('Failed to generate hash');
 
       const result = await response.json();
       setHashResult(result);
       await fetchStorageNodes();
     } catch (error) {
-      console.error('Error:', error);
       setError(error.message);
       setOpenSnackbar(true);
     }
@@ -84,9 +85,7 @@ function App() {
         method: 'POST',
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to reset storage nodes');
-      }
+      if (!response.ok) throw new Error('Failed to reset storage nodes');
 
       setHashResult(null);
       await fetchStorageNodes();
@@ -94,66 +93,89 @@ function App() {
       setError('Storage nodes have been reset');
       setOpenSnackbar(true);
     } catch (error) {
-      console.error('Error:', error);
       setError(error.message);
       setOpenSnackbar(true);
     }
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            Hash Storage Visualization
+    <div className="App">
+      <Container maxWidth="lg">
+        <Box sx={{ my: 6, textAlign: 'center' }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, color: '#fff' }}>
+            Hash Storage Visualization System
           </Typography>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => setResetDialogOpen(true)}
+          <Typography variant="subtitle1" sx={{ color: '#ccc', mt: 1 }}>
+            An intelligent storage system built on hash functions and collision resolution.
+          </Typography>
+
+          <Paper
+            elevation={4}
+            sx={{
+              p: 4,
+              mt: 3,
+              backgroundColor: '#141414',
+              borderRadius: '24px',
+              maxWidth: '700px',
+              mx: 'auto'
+            }}
           >
-            Reset All
-          </Button>
-        </Box>
-        
-        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-          <form onSubmit={handleSubmit}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <form onSubmit={handleSubmit}>
               <TextField
-                fullWidth
-                label="Enter data to hash"
+                label="Enter Data"
+                variant="outlined"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                variant="outlined"
+                fullWidth
+                InputLabelProps={{ style: { color: 'white' } }}
+                InputProps={{ style: { color: 'white' } }}
+                sx={{
+                  '& label.Mui-focused': { color: 'white' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: 'white' },
+                    '&:hover fieldset': { borderColor: 'white' },
+                    '&.Mui-focused fieldset': { borderColor: 'white' },
+                  },
+                }}
               />
-              <Button 
-                type="submit" 
-                variant="contained" 
-                color="primary"
-                size="large"
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                sx={{
+                  mt: 4,
+                  backgroundColor: '#fff',
+                  color: '#000',
+                  fontWeight: 'bold',
+                  borderRadius: '16px',
+                  py: 1.5,
+                  fontSize: '1rem',
+                  '&:hover': { backgroundColor: '#e0e0e0' }
+                }}
               >
-                Generate Hash
+                GENERATE HASH
               </Button>
-            </Box>
-          </form>
-        </Paper>
+            </form>
+          </Paper>
 
-        <HashVisualization 
-          hashResult={hashResult} 
-          storageNodes={storageNodes}
-          onMethodChange={handleMethodChange}
-        />
-      </Box>
+          <Box sx={{ mt: 6 }}>
+            <HashVisualization
+              hashResult={hashResult}
+              storageNodes={storageNodes}
+              onMethodChange={handleMethodChange}
+            />
+          </Box>
+        </Box>
+      </Container>
 
-      <Snackbar 
-        open={openSnackbar} 
-        autoHideDuration={6000} 
+      <Snackbar
+        open={openSnackbar}
+        autoHideDuration={6000}
         onClose={() => setOpenSnackbar(false)}
       >
-        <Alert 
-          onClose={() => setOpenSnackbar(false)} 
-          severity={error.includes('Failed') ? 'error' : 'success'} 
+        <Alert
+          onClose={() => setOpenSnackbar(false)}
+          severity={error.includes('Failed') ? 'error' : 'success'}
           sx={{ width: '100%' }}
         >
           {error}
@@ -163,6 +185,7 @@ function App() {
       <Dialog
         open={resetDialogOpen}
         onClose={() => setResetDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: '12px' } }}
       >
         <DialogTitle>Reset Confirmation</DialogTitle>
         <DialogContent>
@@ -177,7 +200,7 @@ function App() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+    </div>
   );
 }
 
