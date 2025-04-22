@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Paper, 
+  Typography, 
+  Card, 
+  CardContent, 
+  Grid, 
   Fade,
   Dialog,
   DialogTitle,
@@ -17,59 +17,84 @@ import {
   ListItemText,
   LinearProgress,
   IconButton,
-  FormControl,
-  InputLabel,
+  Chip,
+  Tooltip,
   Select,
   MenuItem,
-  OutlinedInput
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import DeleteIcon from '@mui/icons-material/Delete';
+import WarningIcon from '@mui/icons-material/Warning';
+import LinkIcon from '@mui/icons-material/Link';
+import * as d3 from 'd3';
 
 const StorageNodeCard = ({ node, isSelected, index, onClick }) => {
   const progress = (node.usedCapacity / node.capacity) * 100;
+  const chainLength = node.chain ? node.chain.length : 0;
 
   return (
     <Fade in={true} timeout={500} style={{ transitionDelay: `${index * 100}ms` }}>
-      <Card
+      <Card 
         onClick={() => onClick(node)}
-        sx={{
+        sx={{ 
           height: '100%',
-          backgroundColor: '#1a1a1a',
-          borderRadius: '16px',
-          border: isSelected ? '2px solid #ffffff' : '1px solid #333',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-          color: '#ffffff',
+          backgroundColor: isSelected ? '#e8f5e9' : '#f5f5f5',
+          border: isSelected ? '2px solid #4caf50' : '1px solid #e0e0e0',
           transition: 'all 0.3s ease',
           cursor: 'pointer',
           '&:hover': {
-            boxShadow: '0 6px 18px rgba(255,255,255,0.1)',
-            transform: 'translateY(-4px)',
-          },
+            transform: 'translateY(-5px)',
+            boxShadow: 3
+          }
         }}
       >
         <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-            {node.name}
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="h6" component="div">
+              {node.name}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {node.collisions > 0 && (
+                <Tooltip title={`${node.collisions} collision(s)`}>
+                  <Chip 
+                    icon={<WarningIcon />} 
+                    label={`${node.collisions} collision(s)`}
+                    color="warning"
+                    size="small"
+                  />
+                </Tooltip>
+              )}
+              {chainLength > 0 && (
+                <Tooltip title={`${chainLength} items in chain`}>
+                  <Chip 
+                    icon={<LinkIcon />} 
+                    label={`${chainLength} in chain`}
+                    color="info"
+                    size="small"
+                  />
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
           <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" sx={{ color: '#ccc' }} gutterBottom>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
               Capacity: {node.usedCapacity}/{node.capacity} units
             </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{
-                height: 8,
+            <LinearProgress 
+              variant="determinate" 
+              value={progress} 
+              sx={{ 
+                height: 8, 
                 borderRadius: 4,
-                backgroundColor: '#333',
+                backgroundColor: '#e0e0e0',
                 '& .MuiLinearProgress-bar': {
-                  backgroundColor: progress >= 100 ? '#000' : '#fff',
-                },
+                  backgroundColor: progress > 90 ? '#f44336' : '#4caf50'
+                }
               }}
             />
           </Box>
-          <Typography variant="body2" sx={{ color: '#ccc' }}>
+          <Typography variant="body2" color="text.secondary">
             Status: {isSelected ? 'Active' : 'Inactive'}
           </Typography>
         </CardContent>
@@ -82,48 +107,102 @@ const StorageNodeDialog = ({ node, open, onClose }) => {
   if (!node) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ backgroundColor: '#ffffff', color: '#000' }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
         {node.name} Details
         <IconButton
           aria-label="close"
           onClick={onClose}
-          sx={{ position: 'absolute', right: 8, top: 8, color: '#000' }}
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 8,
+            color: (theme) => theme.palette.grey[500],
+          }}
         >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ backgroundColor: '#ffffff', color: '#000' }}>
+      <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
             Storage Capacity
           </Typography>
-          <LinearProgress
-            variant="determinate"
+          <LinearProgress 
+            variant="determinate" 
             value={(node.usedCapacity / node.capacity) * 100}
             sx={{ height: 10, borderRadius: 5 }}
           />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {node.usedCapacity} / {node.capacity} units used
           </Typography>
+          {node.collisions > 0 && (
+            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+              This node has {node.collisions} collision(s)
+            </Typography>
+          )}
         </Box>
 
         <Typography variant="subtitle1" gutterBottom>
-          Stored Items ({node.storedItems.length})
+          Stored Items
         </Typography>
         <List>
-          {node.storedItems.map((item) => (
+          {node.storedItems && node.storedItems.map((item) => (
             <ListItem key={item.id} divider>
               <ListItemText
                 primary={item.content}
-                secondary={`Stored at: ${new Date(item.timestamp).toLocaleString()}`}
+                secondary={
+                  <>
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Hash: {item.id}
+                    </Typography>
+                    <br />
+                    {item.originalLocation !== node.name && (
+                      <Typography component="span" variant="body2" color="warning.main">
+                        Collision: Originally assigned to {item.originalLocation}
+                        {item.stepSize && ` (Step size: ${item.stepSize})`}
+                      </Typography>
+                    )}
+                    <br />
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      Stored at: {new Date(item.timestamp).toLocaleString()}
+                    </Typography>
+                  </>
+                }
+              />
+            </ListItem>
+          ))}
+          {node.chain && node.chain.map((item) => (
+            <ListItem key={item.id} divider>
+              <ListItemText
+                primary={item.content}
+                secondary={
+                  <>
+                    <Typography component="span" variant="body2" color="text.primary">
+                      Hash: {item.id}
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="info.main">
+                      Stored in chain
+                    </Typography>
+                    <br />
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      Stored at: {new Date(item.timestamp).toLocaleString()}
+                    </Typography>
+                  </>
+                }
               />
             </ListItem>
           ))}
         </List>
       </DialogContent>
-      <DialogActions sx={{ backgroundColor: '#ffffff' }}>
-        <Button onClick={onClose} sx={{ color: '#000' }}>Close</Button>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   );
@@ -132,30 +211,85 @@ const StorageNodeDialog = ({ node, open, onClose }) => {
 const HashVisualization = ({ hashResult, storageNodes, onMethodChange }) => {
   const [selectedNode, setSelectedNode] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [method, setMethod] = useState('chaining');
 
-  useEffect(() => {
-    const viz = document.getElementById('hash-visualization');
-    if (viz) viz.innerHTML = '';
+  React.useEffect(() => {
+    // Clear previous visualization
+    d3.select('#hash-visualization').selectAll('*').remove();
 
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '600');
-    svg.setAttribute('height', '60');
+    if (!hashResult) {
+      // Create initial visualization
+      const svg = d3.select('#hash-visualization')
+        .append('svg')
+        .attr('width', 600)
+        .attr('height', 100);
 
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', '300');
-    text.setAttribute('y', '40');
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', '#666');
-    text.style.fontFamily = 'monospace';
-    text.style.fontSize = '14px';
-
-    if (hashResult) {
-      text.textContent = 'Hash: ' + hashResult.hash.substring(0, 16) + '...';
+      svg.append('text')
+        .attr('x', 300)
+        .attr('y', 50)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .style('font-family', 'monospace')
+        .style('font-size', '14px')
+        .text('Enter data to generate hash...');
+      return;
     }
 
-    svg.appendChild(text);
-    viz?.appendChild(svg);
+    // Create SVG for hash visualization
+    const svg = d3.select('#hash-visualization')
+      .append('svg')
+      .attr('width', 600)
+      .attr('height', 120);
+
+    // Add hash value display with animation
+    const hashText = svg.append('text')
+      .attr('x', 300)
+      .attr('y', 40)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#666')
+      .style('font-family', 'monospace')
+      .style('font-size', '14px');
+
+    // Animate the hash text
+    hashText
+      .text('Hash: ' + hashResult.hash.substring(0, 16) + '...')
+      .style('opacity', 0)
+      .transition()
+      .duration(1000)
+      .style('opacity', 1);
+
+    // Add collision information
+    if (hashResult.details.isCollision) {
+      const collisionInfo = svg.append('g')
+        .attr('transform', 'translate(300, 70)');
+
+      collisionInfo.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#f44336')
+        .style('font-size', '14px')
+        .text(`Collision! Originally assigned to ${hashResult.details.originalLocation}`);
+
+      if (hashResult.details.collisionMethod === 'double-hashing') {
+        collisionInfo.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#2196f3')
+          .style('font-size', '12px')
+          .attr('y', 20)
+          .text(`Step Size: ${hashResult.details.stepSize}, Probe Sequence: ${hashResult.details.probeSequence}`);
+      }
+
+      collisionInfo.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .style('font-size', '12px')
+        .attr('y', 40)
+        .text(`Method: ${hashResult.details.collisionMethod}`);
+
+      collisionInfo.selectAll('text')
+        .style('opacity', 0)
+        .transition()
+        .duration(1000)
+        .style('opacity', 1);
+    }
   }, [hashResult]);
 
   const handleNodeClick = async (node) => {
@@ -169,103 +303,34 @@ const HashVisualization = ({ hashResult, storageNodes, onMethodChange }) => {
     }
   };
 
-  const handleDropdownChange = (e) => {
-    const newMethod = e.target.value;
-    setMethod(newMethod);
-    onMethodChange(newMethod);
-  };
-
   return (
-    <Paper
-      elevation={3}
-      sx={{
-        p: 4,
-        mt: 6,
-        borderRadius: '16px',
-        backgroundColor: '#ffffff !important',
-        color: '#000000',
-      }}
-    >
-      <Box sx={{ mb: 4, textAlign: 'center' }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
+    <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h6">
           Storage Visualization
         </Typography>
-
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <FormControl
-            variant="outlined"
-            sx={{
-              width: 250,
-              backgroundColor: '#fff',
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-            }}
+        <FormControl sx={{ minWidth: 200 }}>
+          <InputLabel>Collision Resolution Method</InputLabel>
+          <Select
+            defaultValue="chaining"
+            onChange={(e) => onMethodChange(e.target.value)}
+            label="Collision Resolution Method"
           >
-            <InputLabel
-              id="collision-method-label"
-              sx={{
-                color: '#000',
-                '&.Mui-focused': {
-                  color: '#000',
-                },
-              }}
-            >
-              Collision Resolution
-            </InputLabel>
-            <Select
-              labelId="collision-method-label"
-              id="collision-method"
-              value={method}
-              onChange={handleDropdownChange}
-              input={<OutlinedInput label="Collision Resolution" />}
-              sx={{
-                backgroundColor: '#f0f0f0',
-                color: '#000',
-                '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#000',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#000',
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: '#000',
-                },
-                '.MuiSvgIcon-root': {
-                  color: '#000',
-                },
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: {
-                    backgroundColor: '#ffffff !important',
-                    color: '#000 !important',
-                    '& .MuiMenuItem-root': {
-                      color: '#000 !important',
-                    },
-                    '& .MuiMenuItem-root:hover': {
-                      backgroundColor: '#f0f0f0 !important',
-                    },
-                    '& .Mui-selected': {
-                      backgroundColor: '#e0e0e0 !important',
-                    }
-                  }
-                },
-              }}
-            >
-              <MenuItem value="chaining">Chaining (Linked List)</MenuItem>
-              <MenuItem value="linear-probing">Open Addressing (Linear Probing)</MenuItem>
-              <MenuItem value="double-hashing">Double Hashing</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
+            <MenuItem value="chaining">Chaining (Linked List)</MenuItem>
+            <MenuItem value="linear-probing">Open Addressing (Linear Probing)</MenuItem>
+            <MenuItem value="double-hashing">Double Hashing</MenuItem>
+          </Select>
+        </FormControl>
       </Box>
-
+      
+      {/* Hash Display */}
       <Box id="hash-visualization" sx={{ display: 'flex', justifyContent: 'center', mb: 4 }} />
-
-      <Grid container spacing={3} justifyContent="center">
+      
+      {/* Storage Nodes Grid */}
+      <Grid container spacing={3}>
         {storageNodes.map((node, index) => (
           <Grid item xs={12} sm={6} md={3} key={node.id}>
-            <StorageNodeCard
+            <StorageNodeCard 
               node={node}
               isSelected={hashResult && node.name === hashResult.location}
               index={index}
@@ -275,33 +340,14 @@ const HashVisualization = ({ hashResult, storageNodes, onMethodChange }) => {
         ))}
       </Grid>
 
+      {/* Storage Node Details Dialog */}
       <StorageNodeDialog
         node={selectedNode}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
       />
-
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<DeleteIcon />}
-          onClick={() => window.dispatchEvent(new CustomEvent('triggerResetDialog'))}
-          sx={{
-            color: '#f44336',
-            borderColor: '#f44336',
-            fontWeight: 'bold',
-            '&:hover': {
-              backgroundColor: '#f44336',
-              color: '#fff'
-            }
-          }}
-        >
-          RESET ALL
-        </Button>
-      </Box>
     </Paper>
   );
 };
 
-export default HashVisualization;
+export default HashVisualization; 
