@@ -185,13 +185,7 @@ function App() {
       <Dialog
         open={resetDialogOpen}
         onClose={() => setResetDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-            backgroundColor: '#fff !important', 
-            color: '#000 !important'            
-          }
-        }}
+        PaperProps={{ sx: { borderRadius: '12px' } }}
       >
         <DialogTitle>Reset Confirmation</DialogTitle>
         <DialogContent>
